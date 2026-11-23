@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a new capability.
+description: Propose a new capability or a change to the scaffold.
 labels: [enhancement]
 body:
   - type: textarea
@@ -13,7 +13,14 @@ body:
     id: proposal
     attributes:
       label: The proposal
-      description: What should change?
+      description: What should change, and which phase in docs/setup-plan.md does it belong to?
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+      description: Does this widen a tool, a network path, or a credential?
     validations:
       required: true
   - type: textarea

@@ -1,0 +1,161 @@
+# Hermes Agent configuration template for shamiko.
+#
+# Deploy to ~/.hermes/config.yaml for the dedicated, unprivileged `hermes`
+# user. This file is a template: <MODEL_ID>, <PROVIDER> and
+# <OWNER_PLATFORM_USER_ID> are placeholders. Choose the real values in Phase 0
+# of docs/setup-plan.md and keep the placeholders in Git.
+#
+# `_config_version` is managed by Hermes. Do not copy it into this template.
+# Verify every key against the upstream reference before deploying:
+# https://hermes-agent.nousresearch.com/docs/reference/configuration
+
+model:
+  # Phase 0 decision. `hermes model` writes the real provider and model.
+  default: "<MODEL_ID>"
+  provider: "<PROVIDER>"
+
+database:
+  # shamiko runs on local ext4, where SQLite WAL is crash-safe.
+  journal_mode: "wal"
+
+agent:
+  # A health-summary turn does not need hundreds of iterations.
+  max_turns: 25
+
+  # Removed on every surface, after per-platform configuration, so a platform
+  # row cannot add them back. The read-only pilot keeps only `web` and `todo`.
+  disabled_toolsets:
+    - browser
+    - catalog
+    - clarify
+    - code_execution
+    - computer_use
+    - connections
+    - cronjob
+    - delegation
+    - desktop_ui
+    - discord
+    - discord_admin
+    - feishu_doc
+    - feishu_drive
+    - file
+    - image_gen
+    - kanban
+    - memory
+    - project
+    - search
+    - session_search
+    - skills
+    - skills_hub
+    - terminal
+    - tts
+    - video
+    - video_gen
+    - vision
+    - x_search
+
+# Per-platform allowlist. `web` is public web search and extraction; `todo` is
+# in-memory planning. No terminal, file, browser, code execution, cron, memory,
+# skill, image, voice, or third-party service tools.
+platform_toolsets:
+  cli: [web, todo]
+  telegram: [web, todo]
+  discord: [web, todo]
+  whatsapp: [web, todo]
+  slack: [web, todo]
+  signal: [web, todo]
+  qqbot: [web, todo]
+  teams: [web, todo]
+  google_chat: [web, todo]
+
+approvals:
+  # `manual` always prompts for a dangerous command. Do not use `off`.
+  mode: "manual"
+  timeout: 300
+  # Headless and unattended surfaces fail closed.
+  cron_mode: "deny"
+  single_query_mode: "deny"
+  unattended_mode: "deny"
+  # Never ["*"]: only the owner may answer an approval.
+  approvers: ["<OWNER_PLATFORM_USER_ID>"]
+  mcp_reload_confirm: true
+  destructive_slash_confirm: true
+  # Unconditional deny rules, applied before YOLO and `mode: off`. Patterns are
+  # fnmatch globs matched case-insensitively against the command.
+  deny:
+    - "sudo *"
+    - "docker *"
+    - "git push --force*"
+    - "git push -f*"
+    - "*curl*|*sh*"
+    - "*wget*|*sh*"
+    - "reboot*"
+    - "shutdown*"
+    - "systemctl *"
+    - "mkfs*"
+    - "dd if=* of=/dev/*"
+
+security:
+  # Public URLs only. The pilot must not reach loopback, the LAN, or metadata.
+  allow_private_urls: false
+  # Never let the agent rewrite the instructions that steer it.
+  protected_instruction_files: true
+  protected_instruction_extra_patterns: []
+  approval:
+    transport: "builtin"
+    # Fail closed if the approval transport is unavailable.
+    transport_fallback: "deny"
+
+# Not used while the terminal toolset is disabled. This is the only backend
+# permitted if execution is widened in Phase 3.
+terminal:
+  backend: "docker"
+  cwd: "/workspace"
+  timeout: 120
+  lifetime_seconds: 300
+  home_mode: "profile"
+  docker_image: "nousresearch/hermes-sandbox:desktop"
+  docker_mount_cwd_to_workspace: false
+  docker_run_as_host_user: true
+  # No network egress from the execution container.
+  docker_network: false
+  # No host paths, forwarded secrets, literal env, or extra docker flags.
+  docker_forward_env: []
+  docker_env: {}
+  docker_volumes: []
+  docker_extra_args: []
+  # Keep the sandbox fresh across Hermes restarts.
+  docker_persist_across_processes: false
+  # `container_disk` needs overlay2 on XFS with pquota; on ext4 Hermes may
+  # ignore the quota. The CPU and memory limits still apply.
+  container_cpu: 1
+  container_memory: 2048
+  container_disk: 10240
+  container_persistent: false
+
+cron:
+  # The cron toolset is disabled. If it is ever enabled, do not replay missed
+  # jobs after downtime.
+  catch_up_missed: false
+
+# Unknown direct messages get one polite decline and no agent turn.
+unauthorized_dm_behavior: "decline"
+unauthorized_dm_decline_message: "This assistant is private."
+
+gateway:
+  # The global allow-all switch stays off. Allowlists live in ~/.hermes/.env.
+  allow_all_users: false
+
+auth:
+  # Do not borrow Codex or Claude Code logins on a shared server.
+  adopt_external_logins: false
+
+telemetry:
+  shared_metrics:
+    enabled: false
+    send: false
+
+updates:
+  # Keep a quick state snapshot before `hermes update`.
+  pre_update_backup: "quick"
+  backup_keep: 5

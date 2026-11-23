@@ -4,19 +4,26 @@ Index for this repository.
 
 ## Guides
 
-- [Architecture](architecture.md) diagrams the components and trust boundaries.
-- [Threat model](threat-model.md) maps assets, actors, and controls.
-- [Secrets](secrets.md) covers where secrets live and where they must not.
-- [Setup plan](setup-plan.md) is the phased rollout.
-- [Decisions](decisions.tsv) is the decision log.
+- [Architecture](architecture.md) — components, trust boundaries, and data flow.
+- [Threat model](threat-model.md) — assets, actors, and the control for each threat.
+- [Secrets](secrets.md) — where secrets live, permissions, rotation, backups.
+- [Setup plan](setup-plan.md) — the phased rollout.
+- [Decisions](decisions.tsv) — the decision log.
 
 ## Runbooks
 
-- [Exposure](runbooks/exposure.md).
-- [Backup and restore](runbooks/backup-restore.md).
-- [Rollback](runbooks/rollback.md).
+- [Pilot](runbooks/pilot.md) — start, verify, and stop the read-only pilot.
+- [Update](runbooks/update.md) — back up, update, verify, roll back.
+- [Incident](runbooks/incident.md) — contain, revoke, inspect, recover.
 
-## Machines
+## Templates
 
-- [Machines](machines/README.md).
-- [Windows + WSL2](machines/windows-wsl.md).
+- [`config/config.yaml`](../config/config.yaml) — Hermes configuration template.
+- [`config/.env.example`](../config/.env.example) — secret names and the owner allowlist.
+
+## Unverified claims
+
+Facts that were not confirmed against upstream documentation are marked
+`UNVERIFIED` in the page that uses them. They are listed together in
+[`threat-model.md`](threat-model.md#unverified) and
+[`setup-plan.md`](setup-plan.md).

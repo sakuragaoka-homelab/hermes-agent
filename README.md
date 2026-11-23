@@ -1,79 +1,99 @@
-# openclaw-homelab
+# hermes-agent
 
 Hardened configuration, validation, and runbooks for a self-hosted
-[OpenClaw](https://openclaw.ai) gateway. OpenClaw is a personal AI agent that
-runs on your own machine, meets you in the chat apps you already use, and gets
-real tool access. This repository exists to make that deployment deliberate
-instead of accidental.
+[Nous Research Hermes Agent](https://github.com/NousResearch/hermes-agent) on
+the homelab server `shamiko`.
 
-**Status: scaffold only.** Nothing here installs or runs OpenClaw. The
-repository holds the plan, the hardened configuration, the validator, and the
-runbooks. The install happens in [Phase 1](docs/setup-plan.md).
+**Status: scaffold only.** Nothing here installs or runs Hermes. The repository
+holds the plan, the hardened configuration templates, the validator, and the
+runbooks. Installation starts in [Phase 1](docs/setup-plan.md).
 
-Part of the `simpsonm09-projects` fleet. This repository lives in
-[`simpsonm09-projects/openclaw-homelab`](https://github.com/simpsonm09-projects/openclaw-homelab).
-Work happens on a branch with a pull request into `main`. See
-[`repo-standard`](https://github.com/simpsonm09-projects/repo-standard) for the shared
-CI, linting, security scanning, and branch governance.
+Part of the [`sakuragaoka-homelab`](https://github.com/sakuragaoka-homelab)
+fleet. Work happens on a branch with a pull request into `main`. Shared CI,
+security, and branch rules live in the
+[core standard](https://github.com/sakuragaoka-homelab/.github/blob/main/standards/core.md).
 
 ## Why this exists
 
-The risk in a personal agent is not the model. It is that the agent runs shell
-commands, reads and writes files, and usually does so unattended, reachable from
-a chat app. OpenClaw turns tools loose on the host unless sandboxing is
-configured, and its own documentation says so. This repository pins the safe
-defaults, proves them in CI, and records why each one is set.
+Hermes is a personal agent with real tools: web access, files, a terminal,
+browser automation, cron, and messaging. The risk is not the model. It is that
+the agent runs unattended with access to the host and to the accounts it can
+reach.
+
+This repository makes the deployment deliberate. The first phase is a
+read-only pilot: public web search and an in-memory task list, nothing else. The
+terminal, file, browser, code execution, cron, memory, search-only, and
+third-party service toolsets are disabled globally, so a per-platform row cannot
+add them back. Execution, if it is ever widened, is Docker-only with no network,
+no host mounts, no forwarded secrets, and no extra flags.
+
+## Quick start
+
+```bash
+mise install        # just, bun, oxlint, actionlint, zizmor, shellcheck, gitleaks
+just install        # bun install --frozen-lockfile
+just check          # format, lint, types, tests, workflows, secrets, agent files
+just agent-files    # skill and symlink check
+```
+
+`just check` runs the same recipes CI runs. On a branch it scans
+`origin/main..HEAD` for secrets; set `GITLEAKS_LOG_OPTS` to scan another range.
+
+## Commands
+
+| Command            | What it does                                              |
+| ------------------ | --------------------------------------------------------- |
+| `just install`     | Install the locked Bun dependencies.                      |
+| `just fmt`         | Format TypeScript, JSON, YAML, Markdown, and CSS.         |
+| `just fmt-check`   | Fail when a file is not formatted.                        |
+| `just lint`        | Lint TypeScript with oxlint and the hook with shellcheck. |
+| `just typecheck`   | Type-check with Bun.                                      |
+| `just test`        | Run the validator tests.                                  |
+| `just workflows`   | Lint workflows with actionlint and zizmor.                |
+| `just secrets`     | Scan a commit range with gitleaks.                        |
+| `just check`       | Run everything CI requires.                               |
+| `just hooks`       | Point Git at `.githooks/`.                                |
+| `just agent-files` | Verify skills, symlinks, and named recipes.               |
 
 ## Layout
 
-| Path | What it holds |
-| --- | --- |
-| `config/openclaw.json` | The hardened gateway configuration, as a template. |
-| `src/openclaw_homelab/` | The validator that enforces the hardening invariants. |
-| `tests/` | Behaviour tests for the validator. |
-| `docs/setup-plan.md` | The phased rollout. |
-| `docs/architecture.md` | Components and trust boundaries. |
-| `docs/threat-model.md` | Assets, actors, and the control each one maps to. |
-| `docs/secrets.md` | Where secrets live, and where they must not. |
-| `docs/machines/` | Per-machine notes: Windows + WSL2 now, homelab later. |
-| `docs/runbooks/` | Exposure, backup and restore, rollback. |
-| `docs/decisions.tsv` | Decision log. |
-| `services/openclaw/` | Deployment wiring. Deferred until Phase 1. |
+| Path                   | What it holds                                            |
+| ---------------------- | -------------------------------------------------------- |
+| `config/config.yaml`   | Hardened Hermes `~/.hermes/config.yaml` template.        |
+| `config/.env.example`  | Secret names, owner allowlist, and forbidden switches.   |
+| `src/validate.ts`      | The validator that enforces the hardening rules.         |
+| `tests/`               | Behaviour tests for the validator.                       |
+| `docs/setup-plan.md`   | The phased rollout.                                      |
+| `docs/architecture.md` | Components, trust boundaries, and data flow.             |
+| `docs/threat-model.md` | Assets, actors, and the control for each threat.         |
+| `docs/secrets.md`      | Where secrets live and where they must not.              |
+| `docs/runbooks/`       | Pilot, update, and incident procedures.                  |
+| `docs/decisions.tsv`   | Decision log.                                            |
+| `.agents/skills/`      | Agent skills; `.claude/skills/` mirrors them by symlink. |
 
-## Documentation
-
-Read [`docs/README.md`](docs/README.md) for the plan, architecture, threat model, runbooks, and machine notes.
-
-## Validate the configuration
-
-The validator has no third-party dependencies, so it runs anywhere Python 3.12
-does.
+## Validate the templates
 
 ```bash
-python -m openclaw_homelab config/openclaw.json
+bun src/validate.ts
 ```
 
-The installed console script and the CI job run the same checks:
+The validator parses `config/config.yaml` and `config/.env.example`, then fails
+on any weakened control: a concrete model in the template, a toolset outside
+the pilot allowlist, an approval mode that does not prompt, a permissive
+approver, a local terminal backend, Docker networking or host mounts, a
+plaintext sudo password, a global allow-all, shared telemetry, or a disabled
+pre-update backup. It also rejects a real-looking credential in a secret-shaped
+key.
 
-```bash
-openclaw-homelab-validate
-```
+The validator checks the committed template, not a deployed copy. A deployed
+copy has real model and owner values and is expected to fail the placeholder
+checks.
 
-## Target
+## Privacy
 
-Windows with WSL2 now, on the current machine. The homelab server runs Windows
-10 with WSL2, and the same artifacts move across unchanged. See
-[`docs/machines/windows-wsl.md`](docs/machines/windows-wsl.md) for the WSL2
-specifics and the migration notes.
-
-## Local commands
-
-```bash
-mise install
-pip install -e '.[test]'
-mise run lint
-mise run test
-```
+The repository uses placeholders for secrets, owner ids, and network names. It
+contains no IP addresses, tailnet names, or credentials. Machine names are
+limited to `shamiko`. See [`docs/secrets.md`](docs/secrets.md).
 
 ## License
 
