@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-# Thin launcher: the checks live in `just check` (core standard C7.1).
-set -euo pipefail
-just check

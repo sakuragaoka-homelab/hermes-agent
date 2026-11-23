@@ -52,7 +52,7 @@ just agent-files    # skill and symlink check
 | `just workflows`   | Lint workflows with actionlint and zizmor.                |
 | `just secrets`     | Scan a commit range with gitleaks.                        |
 | `just check`       | Run everything CI requires.                               |
-| `just hooks`       | Point Git at `.githooks/`.                                |
+| `just hooks`       | Install the shared Lefthook hooks in `.git/hooks`.        |
 | `just agent-files` | Verify skills, symlinks, and named recipes.               |
 
 ## Layout
