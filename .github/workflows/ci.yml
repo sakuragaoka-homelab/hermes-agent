@@ -1,56 +1,102 @@
-name: ci
+name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
+  schedule:
+    # C5.3: the full suite also runs weekly, outside the pull request gate.
+    - cron: "0 6 * * 1"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  fmt-check:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just fmt-check
+
   lint:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    uses: simpsonm09-projects/repo-standard/.github/workflows/lint.yml@34941736aa4de7d634376043ae80527c3bfc76ea # repo-standard 3494173
-  aislop:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    permissions:
-      contents: read
-      security-events: write
-    uses: simpsonm09-projects/repo-standard/.github/workflows/aislop.yml@34941736aa4de7d634376043ae80527c3bfc76ea # repo-standard 3494173
-  security:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    permissions:
-      contents: read
-      security-events: write
-    uses: simpsonm09-projects/repo-standard/.github/workflows/security.yml@34941736aa4de7d634376043ae80527c3bfc76ea # repo-standard 3494173
-  standard:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    permissions:
-      contents: read
-    uses: simpsonm09-projects/repo-standard/.github/workflows/standard.yml@34941736aa4de7d634376043ae80527c3bfc76ea # repo-standard 3494173
-  coverage:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    permissions:
-      contents: read
-    uses: simpsonm09-projects/repo-standard/.github/workflows/coverage.yml@34941736aa4de7d634376043ae80527c3bfc76ea # repo-standard 3494173
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just lint
+      - run: just agent-files
+
+  typecheck:
+    name: Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just install
+      - run: just typecheck
 
   test:
-    if: github.repository_owner == 'simpsonm09-org' || github.repository_owner == 'simpsonm09-projects'
-    runs-on: ubuntu-24.04
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just install
+      - run: just test
+
+  workflows:
+    name: Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just workflows
+
+  secrets:
+    name: Secrets
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Install pinned tools
-        uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
-      - name: Install and test
-        run: |
-          pip install -e '.[test]'
-          pytest
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: just secrets
+        env:
+          GITLEAKS_LOG_OPTS: ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}

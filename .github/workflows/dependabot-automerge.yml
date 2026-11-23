@@ -1,0 +1,68 @@
+name: Dependabot auto-merge
+
+# Native auto-merge must be enabled in Settings -> General -> Allow auto-merge.
+# This workflow never checks out or runs pull-request code: every step runs
+# trusted default-branch code and acts only on a Dependabot-authored,
+# same-repository pull request. Major updates are labelled and held.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions: {}
+
+jobs:
+  auto-merge:
+    if: >-
+      github.repository == 'sakuragaoka-homelab/hermes-agent' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.user.id == 49699333 &&
+      github.event.pull_request.user.type == 'Bot' &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.repo.id == github.repository_id
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Hold majors and arm minor or patch updates
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          UPDATED_DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          set -euo pipefail
+
+          # Re-check every dependency so a grouped pull request that contains
+          # any major update is held even if the roll-up type changes.
+          major=$(jq -r \
+            '[.[] | select(.updateType == "version-update:semver-major")] | length' \
+            <<<"$UPDATED_DEPENDENCIES")
+
+          if [[ "$UPDATE_TYPE" == "version-update:semver-major" || "$major" -gt 0 ]]; then
+            gh label create major-update \
+              --description "Dependabot major update; owner review required" \
+              --color B60205 --force
+            if ! gh pr view "$PR_NUMBER" --json labels \
+              --jq '.labels[].name' | grep -qx 'major-update'; then
+              gh pr edit "$PR_NUMBER" --add-label major-update
+              gh pr comment "$PR_NUMBER" --body \
+                "This is a major Dependabot update, so it is **not** auto-merged. It needs owner review."
+            fi
+            exit 0
+          fi
+
+          gh pr merge "$PR_NUMBER" --auto --squash

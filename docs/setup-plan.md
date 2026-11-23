@@ -1,125 +1,185 @@
 # Setup plan
 
-The phased rollout for a self-hosted OpenClaw gateway: first on this machine
-(Windows + WSL2), then on the homelab server (Windows 10 + WSL2). Each phase
-ends in a verifiable state. Do not start the next phase until the current one is
-checked.
+The phased rollout for Hermes Agent on `shamiko`. Each phase ends in a
+verifiable state. Do not start the next phase until the current one is checked.
 
 This repository stops at Phase 0. Phases 1 onward touch the machine and run only
 when asked.
 
-## Phase 0 — Prepare, no install
+## Phase 0 — Decide, no install
 
-- Confirm WSL2 is current and `systemd=true` is set in `/etc/wsl.conf`, because
-  the Gateway installs as a systemd user service. See
-  [`machines/windows-wsl.md`](machines/windows-wsl.md).
-- Decide the isolated environment. A dedicated WSL2 distro or a dedicated
-  non-admin user is better than the profile you code in.
-- Confirm Docker is reachable from inside WSL2 (Docker Desktop integration, or a
-  Docker engine in the distro). The sandbox backend needs it.
-- Put Tailscale on the **Windows host**, not inside WSL2.
-- Pick the model provider and have its credential ready. Hosted models are the
-  reliable choice for tool use; a local model is optional.
+Nothing on `shamiko` changes in this phase.
 
-**Done when:** `wsl` runs, systemd is up (`systemctl is-system-running`), Docker
-responds, and the gateway port `18789` is unused.
+- Choose the provider and model. Fill `<PROVIDER>` and `<MODEL_ID>` in a local
+  copy only; the repository keeps the placeholders.
+- Choose a monthly budget and confirm how the provider reports usage. Hermes has
+  `agent.max_turns`, but a hard spend cap is `UNVERIFIED`.
+- Record the owner's numeric platform user id and, for Phase 2, the Telegram
+  user id. Do not use a `@username`.
+- Confirm the dedicated unprivileged user name. The plan assumes `hermes`.
+- Confirm `~` is on ext4, so `database.journal_mode: wal` is crash-safe.
+- Confirm the backup destination and that it is encrypted at rest.
+- Read and accept [`threat-model.md`](threat-model.md).
 
-## Phase 1 — Install and verify
+**Acceptance:** the decisions are recorded in a local note or in
+[`decisions.tsv`](decisions.tsv), and no secret is in Git.
 
-```bash
-curl -fsSL https://openclaw.ai/install.sh | bash     # Linux / WSL2
-openclaw onboard --install-daemon
-openclaw doctor
-openclaw gateway status
-openclaw dashboard
-```
+**Rollback:** none needed; nothing changed.
 
-On the homelab later, the same commands apply inside WSL2, or use the native
-Windows paths described in [`machines/windows-wsl.md`](machines/windows-wsl.md).
+## Phase 1 — Read-only pilot on shamiko
 
-**Done when:** `openclaw doctor` is clean and the Control UI answers on
-`127.0.0.1:18789`.
+The pilot is CLI-only. No gateway, no messaging platform, no Docker execution.
 
-## Phase 2 — Apply the hardened configuration
+1. Create the user without sudo and without the Docker group:
 
-Deploy [`config/openclaw.json`](../config/openclaw.json) to
-`~/.openclaw/openclaw.json` and replace the placeholder token with a real one
-(see [`secrets.md`](secrets.md)). Then:
+   ```bash
+   sudo adduser --disabled-password --gecos "" hermes
+   sudo -iu hermes
+   ```
 
-```bash
-openclaw security audit
-openclaw security audit --deep
-```
+2. Install Hermes as that user:
 
-Resolve critical findings before exposing anything.
+   ```bash
+   curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+   ```
 
-**Done when:** the deep audit reports no critical findings, and
-`python -m openclaw_homelab` still passes.
+   `UNVERIFIED`: whether the installer needs sudo or writes outside the user's
+   home. If it asks for sudo, stop and record what it needs before continuing.
 
-## Phase 3 — Sandbox the tools
+3. Choose the provider and model:
 
-Sandboxing is off by default, so confirm it took effect rather than assuming:
+   ```bash
+   hermes setup
+   ```
 
-```bash
-openclaw sandbox explain
-openclaw sandbox list
-```
+   `UNVERIFIED`: whether `hermes setup --non-interactive` can complete a
+   provider choice without prompts. Prefer the interactive wizard for the first
+   install.
 
-The Gateway process itself stays on the host; only tool execution moves into the
-sandbox. Keep the container's mounts narrow: no Docker socket, no home
-directory, no credential paths.
+4. Deploy the templates with the permissions in
+   [`secrets.md`](secrets.md). Replace the placeholders in the deployed copy
+   only.
 
-**Done when:** `openclaw sandbox explain` shows the expected mode, scope, and
-`workspaceAccess: none`.
+5. Run the health gate:
 
-## Phase 4 — Remote access
+   ```bash
+   hermes doctor
+   ```
 
-Choose the narrowest pattern that works, from the
-[exposure runbook](runbooks/exposure.md):
+   `UNVERIFIED`: whether `hermes doctor` checks Docker reachability. Docker is
+   not part of this phase, so a Docker warning is expected and acceptable.
 
-| Pattern | Use when |
-| --- | --- |
-| Loopback + SSH tunnel | Just you, admin and debugging |
-| Loopback + Tailscale Serve | Personal tailnet access, Gateway stays loopback |
-| Tailnet/LAN bind | Private network, known devices; needs Gateway auth and a firewall allowlist |
-| Public internet | Avoid |
+6. Confirm the tool surface:
 
-Do not port-forward the Gateway. If remote access is required beyond loopback,
-the identities in front of it must be authenticated.
+   ```bash
+   hermes tools --summary
+   hermes config get agent.disabled_toolsets
+   ```
 
-**Done when:** an authorised connection succeeds, an unauthorised one is denied,
-and no public route to port `18789` exists.
+   `--summary` prints the enabled-tools summary, so expect only `web` and
+   `todo` on the CLI row. The second command confirms the global disable.
 
-## Phase 5 — One channel
+7. Start a session and ask for a public health summary:
 
-Start with one chat channel and a pairing policy.
+   ```bash
+   hermes chat
+   ```
 
-- Use `dmPolicy: "pairing"` or a strict `allowFrom` list. Never `"open"`.
-- Never combine a `"*"` allowlist with broad tool access.
-- Require mentions in groups.
+   Ask it to search the public web and summarize a public status page. Then ask
+   it to run `id`. The second request must fail: the terminal toolset is
+   disabled.
 
-```bash
-openclaw pairing approve <channel> <code>
-```
+8. Stop the session and review `~/.hermes/logs/` for errors or unexpected tool
+   calls.
 
-**Done when:** only your account can trigger the bot, and a message from an
-unknown sender does nothing.
+**Acceptance:** the model answers with public web content, no terminal, file,
+browser, code, cron, memory, or skill tool is available, and no private address
+is reachable. The owner confirms the summary is useful enough to continue.
 
-## Phase 6 — Widen and automate
+**Rollback:** exit the session. If the pilot is abandoned, remove the user and
+its home only when the owner asks; `sudo deluser --remove-home hermes`.
 
-Only now, and one control at a time:
+## Phase 2 — One messaging platform
 
-- Relax `tools.exec` for specific senders and commands, keeping `ask` on.
-- Add skills from ClawHub selectively; they are third-party code.
-- Add cron jobs and background tasks.
-- Re-run `openclaw security audit --deep` after each change and record the
-  result in [`decisions.tsv`](decisions.tsv).
+Start with Telegram and one owner. Do not add a second platform until this one
+is stable for a week.
 
-## Deferred
+1. Create the bot and get its token from `@BotFather`.
+2. Put `TELEGRAM_BOT_TOKEN` and the owner's numeric `TELEGRAM_ALLOWED_USERS` in
+   `~/.hermes/.env`.
+3. Configure the platform:
 
-- The container definition in [`services/openclaw/`](../services/openclaw/)
-  lands after Phase 1 pins the image.
-- `flint init` reconciles the tool pins in `mise.toml` once Flint is installed.
-- Ruleset application (`repo-standard/scripts/apply-rulesets`) reports and stops
-  while this repository is private on a free plan. Re-run it if the repository
-  goes public.
+   ```bash
+   hermes gateway setup
+   ```
+
+   Choose Telegram, leave the allowlist to the owner, and choose the polite
+   decline for unknown senders.
+
+4. Install and start the service:
+
+   ```bash
+   hermes gateway install
+   hermes gateway start
+   hermes gateway status
+   ```
+
+   `UNVERIFIED`: whether `hermes gateway install` creates a user unit or a
+   system unit, and the exact unit name. The upstream docs refer to
+   `hermes-gateway.service`; confirm on the host.
+
+5. Message the bot from the owner account. Ask for a public summary.
+6. Message from a second account. Expect one polite decline and no agent turn.
+7. Confirm the approval settings are intact:
+
+   ```bash
+   hermes config get approvals.mode
+   hermes config get approvals.approvers
+   ```
+
+   Expect `manual` and the owner's id. No dangerous command can run in this
+   phase because the terminal toolset is still disabled.
+
+**Acceptance:** only the owner reaches the agent, unknown senders are declined,
+the approval settings are intact, and the gateway restarts cleanly.
+
+**Rollback:** `hermes gateway stop`, then `hermes gateway uninstall`. Remove the
+bot token from `.env` and revoke it at `@BotFather`.
+
+## Phase 3 — Widen execution, only if needed
+
+The pilot does not need execution. Do not start this phase for convenience.
+
+1. Pin the sandbox image by digest instead of the `:desktop` tag.
+2. Update [`threat-model.md`](threat-model.md), [`decisions.tsv`](decisions.tsv),
+   and `src/validate.ts` in the same change. The validator intentionally fails
+   while `terminal` is enabled, so the widening must be explicit.
+3. Remove `terminal` from `agent.disabled_toolsets` and add it to the CLI row
+   only. Keep it off every messaging platform.
+4. Confirm the sandbox has no network, no host mount, no forwarded secret, no
+   extra flag, and a fresh container per process.
+5. Run a read-only command such as `pwd` and confirm it runs in `/workspace`.
+6. Confirm `curl` fails inside the container because the network is disabled.
+
+**Acceptance:** execution works only in the Docker container, the host is not
+mounted, the network is off, and the deny rules still block `sudo`, `docker`,
+`systemctl`, and forced pushes.
+
+**Rollback:** add `terminal` back to `agent.disabled_toolsets` and remove it
+from the CLI row. Restart the session.
+
+## Phase 4 — Operations
+
+- Weekly: `hermes update --check`, then review the changelog.
+- Monthly: `hermes backup`, then `hermes update`, then `hermes doctor`.
+- After every update: confirm the tool surface and the allowlist.
+- Review `~/.hermes/logs/` and the provider usage report monthly.
+- Rotate the provider key and the bot token on a schedule and after any
+  suspected exposure.
+
+**Acceptance:** the update completes, the pre-update backup exists, `hermes
+doctor` exits 0, and the tool surface is unchanged.
+
+**Rollback:** restore the `hermes backup` archive with `hermes import`, or the
+pre-update snapshot if the host can restore it. See
+[`runbooks/update.md`](runbooks/update.md).

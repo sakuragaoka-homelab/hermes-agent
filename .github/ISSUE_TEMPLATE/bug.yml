@@ -1,11 +1,12 @@
 name: Bug report
-description: Report a defect.
+description: Report a defect in the scaffold, validator, or documentation.
 labels: [bug]
 body:
   - type: textarea
     id: what
     attributes:
       label: What happened
+      description: Include the command you ran and the output.
     validations:
       required: true
   - type: textarea
@@ -15,6 +16,16 @@ body:
     validations:
       required: true
   - type: input
-    id: version
+    id: area
     attributes:
-      label: Repository or tool affected
+      label: Area
+      description: For example config, validator, CI, or docs.
+    validations:
+      required: true
+  - type: input
+    id: hermes
+    attributes:
+      label: Hermes Agent version
+      description: Only when the report concerns upstream behavior.
+    validations:
+      required: false

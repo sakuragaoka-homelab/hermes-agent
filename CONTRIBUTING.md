@@ -1,20 +1,34 @@
 # Contributing
 
-## Branches
+This repository is a scaffold: configuration templates, documentation, and a
+validator. It does not install Hermes Agent.
 
-- `main` is the integration branch. It is protected.
-- Everything else is a feature branch that opens a pull request into `main`.
+## Before you change anything
 
-## Pull requests
+Read [`AGENTS.md`](AGENTS.md) and the core standard at
+[`sakuragaoka-homelab/.github`](https://github.com/sakuragaoka-homelab/.github/blob/main/standards/core.md).
+Run the checks once to confirm the toolchain:
 
-- Open the pull request against `main`.
-- Required checks are the lint, aislop, security, and standard jobs, plus any test job the repository adds. Keep them green.
-- Merge, squash, and rebase are all allowed. Delete the branch after merge.
+```bash
+mise install
+just install
+just check
+just agent-files
+```
 
-## Commits
+## Branches and pull requests
 
-Commits on a branch must be signed. The standard requires signed commits on `main`. Configure an SSH signing key and set `commit.gpgsign`, `gpg.format=ssh`, and `user.signingkey`.
+- `main` is protected. Every change goes through a branch and a pull request.
+- Branch names are `type/kebab-slug`, for example
+  `feat/hermes-agent-scaffold`.
+- Pull request titles use Conventional Commits: `type(scope)?: lowercase
+imperative summary`, no trailing period.
+- Squash merge only. The head branch is deleted on merge.
+- Commits are signed. Do not add AI attribution or `Co-Authored-By` trailers.
 
 ## Scope
 
-Keep changes inside the repository's purpose. Do not commit secrets or machine-specific paths. The [`repo-standard` governance doc](https://github.com/simpsonm09-projects/repo-standard/blob/main/docs/governance.md) defines the branch model and the protection rules.
+Keep changes inside the repository's purpose. A change that widens a control
+must update `docs/threat-model.md` and, when it changes a decision, add a row to
+`docs/decisions.tsv`. Do not commit secrets, IP addresses, tailnet names, or
+machine-specific paths; use the placeholders in `config/` and the docs.

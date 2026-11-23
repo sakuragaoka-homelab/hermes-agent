@@ -1,29 +1,15 @@
-__pycache__/
-*.py[cod]
-.venv/
-*.egg-info/
-build/
-dist/
-
-# Local scan output
-*.sarif
-aislop.sarif
-trivy.sarif
-
-# Coverage
-.coverage
+node_modules/
+bun.lockb
 coverage/
+*.sarif
 
-# Local tool state
-.aislop/history.jsonl
-.aislop/agent/
-.DS_Store
-
-# Secrets and OpenClaw runtime state. Never commit these.
+# Local secrets and Hermes runtime state. Never commit these.
 .env
 .env.*
 !.env.example
 *.token
-openclaw.local.json
+auth.json
 
+# Local tool state
+.DS_Store
 artifacts/

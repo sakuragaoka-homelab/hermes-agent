@@ -1,45 +1,52 @@
-# Cross-platform task runner for humans and agents. `just --list` shows every
-# recipe. Keep each recipe a thin call to a portable tool or a script under
-# scripts/. See https://github.com/simpsonm09-projects/repo-standard/blob/main/docs/task-runner.md
-set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
+# Single entry point for humans, agents, and CI. `just --list` documents every
+# recipe. See https://github.com/sakuragaoka-homelab/.github/blob/main/standards/core.md
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
 # List the recipes.
 default:
     @just --list
 
-# Install the pinned tools.
+# Install the locked dependencies.
 install:
-    mise install
+    bun install --frozen-lockfile
 
-# Install the Python dependencies for local runs and tests.
-deps:
-    mise run deps
+# Format JavaScript, TypeScript, JSON, YAML, Markdown, and CSS.
+fmt:
+    bun fmt
 
-# Run every linter over the tracked files.
+# Fail when a tracked file is not formatted.
+fmt-check:
+    bun fmt --check
+
+# Lint TypeScript with oxlint and the shell hook with shellcheck.
 lint:
-    mise exec -- flint run --full
+    oxlint --deny-warnings src tests scripts
+    shellcheck .githooks/pre-push
 
-# Fix what the linters can fix.
-lint-fix:
-    mise exec -- flint run --fix
+# Type-check the project with Bun's checker.
+typecheck:
+    bun check
 
-# Run the AI-slop gate.
-aislop:
-    npx --yes aislop@0.16.1 ci
-
-# Run the test suite. `mise run test` holds the repository test command.
+# Run the validator tests.
 test:
-    mise run test
+    bun test
 
-# Run the suite with an lcov coverage report under coverage/.
-coverage:
-    mise run deps
-    mise run coverage
+# Lint the workflows with actionlint and zizmor.
+workflows:
+    actionlint
+    zizmor .
 
-# Lint and test.
-verify: lint test
+# Scan the pull request diff for secrets.
+secrets:
+    gitleaks git --no-banner --redact --log-opts="${GITLEAKS_LOG_OPTS:-origin/main..HEAD}"
 
+# Everything CI requires.
+check: install fmt-check lint typecheck test workflows secrets agent-files
 
-# Prune remote-tracking refs and delete local branches merged into main.
-prune:
-    node scripts/prune.mjs
+# Install the repository git hooks.
+hooks:
+    git config --local core.hooksPath .githooks
+
+# Verify the agent skills and their Claude Code symlinks.
+agent-files:
+    bun scripts/agent-files.ts

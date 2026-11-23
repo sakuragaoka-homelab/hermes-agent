@@ -2,11 +2,20 @@
 
 ## Where to get help
 
-- Open an issue in this repository's issue tracker for a bug or a feature request. The issue templates ask for what a maintainer needs.
-- Read [`docs/README.md`](docs/README.md) for the documentation and the task runner.
-- Read [`SECURITY.md`](SECURITY.md) to report a vulnerability privately.
+- Open an issue in this repository's issue tracker. The templates ask for the
+  command, the output, and the area affected.
+- Read [`README.md`](README.md) and [`docs/`](docs/README.md) first.
+- Report a vulnerability through [`SECURITY.md`](SECURITY.md), never in a public
+  issue.
 
 ## Before you ask
 
-- Run `just verify` and include the output.
-- Search the open and closed issues for the same problem.
+```bash
+just check
+just agent-files
+```
+
+Include the failing output and the Hermes Agent version when the question
+concerns upstream behavior. This repository documents a scaffold; upstream
+installation and runtime questions belong in the
+[Hermes Agent project](https://github.com/NousResearch/hermes-agent).
