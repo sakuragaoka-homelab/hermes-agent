@@ -13,3 +13,6 @@ auth.json
 # Local tool state
 .DS_Store
 artifacts/
+
+# Lefthook per-machine overrides. Never committed and never used by agents (C7.11).
+lefthook-local.yml
